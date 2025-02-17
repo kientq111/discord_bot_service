@@ -223,18 +223,18 @@ const openai = new OpenAI({
   baseURL: process.env.BASE_URL,
 });
 
+client.setMaxListeners(15);
+
+client.on("ready", () => {
+  console.log(`Bot đã online với tên: ${client.user.tag}`);
+});
+
 client.on("messageCreate", handleMessage);
+
 
 client.on("error", (error) => {
   console.error("Discord client error:", error);
 });
-
-setInterval(() => {
-  client.on("ready", () => {
-    console.log(`Bot đã online với tên: ${client.user.tag}`);
-  });
-  
-}, 1000 * 30)
 
 setInterval(() => {
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
