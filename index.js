@@ -1,13 +1,19 @@
 require("dotenv").config();
-const express = require('express');
+const express = require("express");
 const { Client, GatewayIntentBits } = require("discord.js");
 const { OpenAI } = require("openai");
-const { BOT_PERSONALITY, BOT_PERSONALITY_2, HANDLE_SYSTEM_PROMPT } = require("./completion");
+const {
+  BOT_PERSONALITY,
+  BOT_PERSONALITY_2,
+  HANDLE_SYSTEM_PROMPT,
+} = require("./completion");
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.get('/ping', (req, res) => {
+app.get("/ping", (req, res) => {
+  const origin = req.get("origin"); // Lấy domain gửi request
+  console.log(`Request from: ${origin}`);
   res.send("Bot is alive on port: " + port);
 });
 
@@ -180,7 +186,6 @@ client.on("ready", () => {
 });
 
 client.on("messageCreate", handleMessage);
-
 
 client.on("error", (error) => {
   console.error("Discord client error:", error);
