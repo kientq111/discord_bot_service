@@ -12,8 +12,8 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 app.get("/ping", (req, res) => {
-  const origin = req.get("origin"); // Lấy domain gửi request
-  console.log(`Request from: ${origin}`);
+  const userAgent = req.get("User-Agent");
+  console.log(`Request from: ${userAgent}`);
   res.send("Bot is alive on port: " + port);
 });
 
