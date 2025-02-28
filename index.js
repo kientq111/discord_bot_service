@@ -80,6 +80,27 @@ async function sendChunkedMessage(message, text) {
   return sentMessage;
 }
 
+// New function to send image from base64
+async function sendImageFromBase64(message, base64Data) {
+  try {
+    // Decode the base64 string to a buffer
+    const imageBuffer = Buffer.from(base64Data, "base64");
+
+    // Create a Discord attachment
+    const attachment = {
+      attachment: imageBuffer,
+      name: "generated-image.png",
+    };
+
+    // Send the image as an attachment
+    return await message.channel.send({ files: [attachment] });
+  } catch (error) {
+    console.error("Error sending image:", error);
+    await message.channel.send("Failed to process the generated image 😢");
+    return null;
+  }
+}
+
 function isBotMentioned(message, client) {
   return message.mentions.users.has(client.user.id);
 }
@@ -96,15 +117,20 @@ function cleanMessage(content) {
   return cleanedContent;
 }
 
-// Message handler
+// Refactored message handler for image generation
 async function handleMessage(message) {
   if (message.author.bot) return;
   if (!isBotMentioned(message, client)) return;
+
   const username = message.member?.nickname || message.author.username;
   const channelId = message.channel.id;
+  const userMessage = message.content;
 
   try {
+    // Show typing indicator
     await message.channel.sendTyping();
+
+    // Send waiting message
     const initialMessage = await message.channel.send(
       "Đợi em chút nha..meo meo ⏳"
     );
@@ -113,50 +139,53 @@ async function handleMessage(message) {
     if (!messageHistory.has(channelId)) {
       messageHistory.set(channelId, []);
     }
+
     const history = messageHistory.get(channelId);
     history.push({
       username,
-      content: message.content,
+      content: userMessage,
       timestamp: new Date().toISOString(),
     });
+
     if (history.length > MAX_HISTORY) history.shift();
-    console.log(history);
-    const completion = await openai.chat.completions.create({
-      model: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
-      messages: [
-        {
-          role: "system",
-          content: HANDLE_SYSTEM_PROMPT(
-            username === "KenKen" ? BOT_PERSONALITY_2 : BOT_PERSONALITY
-          ),
-        },
-        ...history.map((msg) => ({
-          role: "user",
-          content: `${msg.content}`,
-        })),
-        { role: "user", content: message.content },
-      ],
-      stream: false,
-      max_tokens: 1500,
-      temperature: 0.7,
+
+    // Extract prompt from user message (you might want to enhance this)
+    // Remove the bot mention from the message
+    const cleanedMessage = userMessage.replace(/<@!?\d+>/g, "").trim();
+    const imagePrompt = cleanedMessage || "Generate anime girl image";
+
+    // Generate image
+    const completion = await openai.images.generate({
+      model: "black-forest-labs/FLUX.1-schnell-Free",
+      prompt: `[
+        "system: You are an anime art generator that creates high-quality anime-style images. Always produce images in anime or manga art style with vibrant colors, clean lines, and distinctive anime aesthetic features like large expressive eyes and stylized proportions.",
+        "user: ${imagePrompt}"
+      ]`,
+      width: 1024,
+      height: 768,
+      steps: 2,
+      n: 1,
+      seed: 2085,
+      response_format: "b64_json",
+      _gl: "1*19sf9ev*_gcl_au*MTk4NjQ4NDA4OS4xNzM4NjQzMzMw*_ga*MTY3MDI3NzYuMTczODY0MzMzMA..*_ga_BS43X21GZ2*MTc0MDczNjQ1MC4xMS4xLjE3NDA3MzY1MzUuMC4wLjA.*_ga_BBHKJ5V8S0*MTc0MDczNjQ1MC4xLjEuMTc0MDczNjUzNS4wLjAuMA..",
     });
 
-    const reply =
-      cleanMessage(completion.choices[0]?.message?.content) ||
-      "Em không biết phải trả lời sao 😅";
+    // Get the base64 image data
+    const imageBase64 = completion.data[0].b64_json;
 
     // Delete the waiting message
     await initialMessage.delete();
 
-    // Send the chunked response
-    await sendChunkedMessage(message, reply);
+    // Send the image
+    const sentMessage = await sendImageFromBase64(message, imageBase64);
 
-    // Update history with bot's response
+    // Update history with image reference
     history.push({
       username: BOT_PERSONALITY.name,
-      content: reply,
+      content: "[Image sent]", // More meaningful than storing the raw base64
       timestamp: new Date().toISOString(),
     });
+
     if (history.length > MAX_HISTORY) history.shift();
   } catch (error) {
     console.error("Error:", error);
@@ -191,6 +220,7 @@ client.on("error", (error) => {
   console.error("Discord client error:", error);
 });
 
+// Clean up old history periodically
 setInterval(() => {
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
   for (const [channelId, history] of messageHistory.entries()) {
